@@ -112,22 +112,30 @@ def dfs(node, fa_idx):
 
 if __name__ == "__main__":
     import sys
-    lg = rdkit.RDLogger.logger() 
+    lg = rdkit.RDLogger.logger()
     lg.setLevel(rdkit.RDLogger.CRITICAL)
 
+    n_total = 0
+    n_success = 0
     cset = set()
+
     with open(sys.argv[1], "r") as f:
         for line in f:
+            n_total += 1
             smiles = line.strip()
             try:
                 mol = MolTree(smiles)
                 for c in mol.nodes:
                     cset.add(c.smiles)
+                n_success += 1
             except Exception as e:
-                print(f"Failed on: {smiles} — {e}", file=sys.stderr)
+                print(f"❌ Failed on line {n_total}: {smiles} — {e}", file=sys.stderr)
                 continue
 
     for x in cset:
         print(x)
+
+    print(f"\n✅ Processed {n_success} / {n_total} molecules successfully", file=sys.stderr)
+
 
 
