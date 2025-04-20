@@ -116,11 +116,18 @@ if __name__ == "__main__":
     lg.setLevel(rdkit.RDLogger.CRITICAL)
 
     cset = set()
-    for line in sys.stdin:
-        smiles = line.split()[0]
-        mol = MolTree(smiles)
-        for c in mol.nodes:
-            cset.add(c.smiles)
+    with open(sys.argv[1], "r") as f:
+        for line in f:
+            smiles = line.strip()
+            try:
+                mol = MolTree(smiles)
+                for c in mol.nodes:
+                    cset.add(c.smiles)
+            except Exception as e:
+                print(f"Failed on: {smiles} — {e}", file=sys.stderr)
+                continue
+
     for x in cset:
-        print x
+        print(x)
+
 
