@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mol_tree import Vocab, MolTree
-from nnutils import create_var, flatten_tensor, avg_pool
-from jtnn_enc import JTNNEncoder
-from jtnn_dec import JTNNDecoder
-from mpn import MPN
-from jtmpn import JTMPN
-from datautils import tensorize
+from .mol_tree import Vocab, MolTree
+from .nnutils import create_var, flatten_tensor, avg_pool
+from .jtnn_enc import JTNNEncoder
+from .jtnn_dec import JTNNDecoder
+from .mpn import MPN
+from .jtmpn import JTMPN
+from .datautils import tensorize
 
-from chemutils import enum_assemble, set_atommap, copy_edit_mol, attach_mols
+from .chemutils import enum_assemble, set_atommap, copy_edit_mol, attach_mols
 import rdkit
 import rdkit.Chem as Chem
 import copy, math
@@ -17,24 +17,35 @@ import copy, math
 class JTNNVAE(nn.Module):
 
     def __init__(self, vocab, hidden_size, latent_size, depthT, depthG):
-        super(JTNNVAE, self).__init__()
+      super(JTNNVAE, self).__init__()
+
+      try:
+        # Safe type casting
+        hs = int(hidden_size)
+        ls = int(latent_size) // 2  # Tree and Mol vectors share latent dim
+        self.hidden_size = hs
+        self.latent_size = ls
         self.vocab = vocab
-        self.hidden_size = hidden_size
-        self.latent_size = latent_size = latent_size / 2 #Tree and Mol has two vectors
 
-        self.jtnn = JTNNEncoder(hidden_size, depthT, nn.Embedding(vocab.size(), hidden_size))
-        self.decoder = JTNNDecoder(vocab, hidden_size, latent_size, nn.Embedding(vocab.size(), hidden_size))
+        # Components
+        self.jtnn = JTNNEncoder(hs, depthT, nn.Embedding(vocab.size(), hs))
+        self.decoder = JTNNDecoder(vocab, hs, ls, nn.Embedding(vocab.size(), hs))
 
-        self.jtmpn = JTMPN(hidden_size, depthG)
-        self.mpn = MPN(hidden_size, depthG)
+        self.jtmpn = JTMPN(hs, depthG)
+        self.mpn = MPN(hs, depthG)
 
-        self.A_assm = nn.Linear(latent_size, hidden_size, bias=False)
-        self.assm_loss = nn.CrossEntropyLoss(size_average=False)
+        self.A_assm = nn.Linear(ls, hs, bias=False)
+        self.assm_loss = nn.CrossEntropyLoss(reduction='sum')  # replaces deprecated size_average=False
 
-        self.T_mean = nn.Linear(hidden_size, latent_size)
-        self.T_var = nn.Linear(hidden_size, latent_size)
-        self.G_mean = nn.Linear(hidden_size, latent_size)
-        self.G_var = nn.Linear(hidden_size, latent_size)
+        self.T_mean = nn.Linear(hs, ls)
+        self.T_var = nn.Linear(hs, ls)
+        self.G_mean = nn.Linear(hs, ls)
+        self.G_var = nn.Linear(hs, ls)
+
+      except Exception as e:
+        print(f"❌ JTNNVAE init failed: {e}")
+        raise
+
 
     def encode(self, jtenc_holder, mpn_holder):
         tree_vecs, tree_mess = self.jtnn(*jtenc_holder)
@@ -222,4 +233,3 @@ class JTNNVAE(nn.Module):
             if not has_error: return cur_mol, cur_mol
 
         return None, pre_mol
-
