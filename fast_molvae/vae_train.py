@@ -74,8 +74,14 @@ total_step = args.load_epoch
 beta = args.beta
 meters = np.zeros(4)
 
-for epoch in xrange(args.epoch):
+import time  # 🕰️ for timing
+import subprocess
+
+for epoch in range(args.epoch):  # Python 3-compatible
     loader = MolTreeFolder(args.train, vocab, args.batch_size, num_workers=4)
+    print(f"🚀 Starting epoch {epoch + 1} / {args.epoch} — Total step so far: {total_step}")
+    epoch_start = time.time()
+
     for batch in loader:
         total_step += 1
         try:
@@ -85,23 +91,38 @@ for epoch in xrange(args.epoch):
             nn.utils.clip_grad_norm_(model.parameters(), args.clip_norm)
             optimizer.step()
         except Exception as e:
-            print e
+            print(f"❌ Step {total_step} — Exception during training: {e}")
             continue
 
         meters = meters + np.array([kl_div, wacc * 100, tacc * 100, sacc * 100])
 
         if total_step % args.print_iter == 0:
             meters /= args.print_iter
-            print "[%d] Beta: %.3f, KL: %.2f, Word: %.2f, Topo: %.2f, Assm: %.2f, PNorm: %.2f, GNorm: %.2f" % (total_step, beta, meters[0], meters[1], meters[2], meters[3], param_norm(model), grad_norm(model))
+            print(f"[{total_step}] ⏱️ Elapsed: {time.time() - epoch_start:.2f}s | "
+                  f"Beta: {beta:.3f}, KL: {meters[0]:.2f}, Word: {meters[1]:.2f}, "
+                  f"Topo: {meters[2]:.2f}, Assm: {meters[3]:.2f}, "
+                  f"PNorm: {param_norm(model):.2f}, GNorm: {grad_norm(model):.2f}")
             sys.stdout.flush()
             meters *= 0
 
         if total_step % args.save_iter == 0:
-            torch.save(model.state_dict(), args.save_dir + "/model.iter-" + str(total_step))
+          save_path = f"{args.save_dir}/model.iter-{total_step}"
+          torch.save(model.state_dict(), save_path)
+          print(f"💾 Saved checkpoint to {save_path}")
+
+          # ✅ Optional: backup to Google Drive
+          drive_dir = "/content/drive/MyDrive/jtnn_checkpoints"
+          drive_path = f"{drive_dir}/model.iter-{total_step}"
+
+          # Create the Drive folder if needed
+          subprocess.run(["mkdir", "-p", drive_dir])
+          subprocess.run(["cp", save_path, drive_path])
+
+          print(f"📁 Backed up to Google Drive: {drive_path}")
 
         if total_step % args.anneal_iter == 0:
-            scheduler.step()
-            print "learning rate: %.6f" % scheduler.get_lr()[0]
+          scheduler.step()
+          print(f"📉 Annealed LR to {scheduler.get_last_lr()[0]:.6f}")
 
         if total_step % args.kl_anneal_iter == 0 and total_step >= args.warmup:
-            beta = min(args.max_beta, beta + args.step_beta)
+          beta = min(args.max_beta, beta + args.step_beta)
