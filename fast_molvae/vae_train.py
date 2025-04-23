@@ -9,7 +9,7 @@ import math, random, sys
 import numpy as np
 import argparse
 from collections import deque
-import cPickle as pickle
+import pickle
 
 from fast_jtnn import *
 import rdkit
@@ -44,13 +44,13 @@ parser.add_argument('--print_iter', type=int, default=50)
 parser.add_argument('--save_iter', type=int, default=5000)
 
 args = parser.parse_args()
-print args
+print(args)
 
 vocab = [x.strip("\r\n ") for x in open(args.vocab)] 
 vocab = Vocab(vocab)
 
 model = JTNNVAE(vocab, args.hidden_size, args.latent_size, args.depthT, args.depthG).cuda()
-print model
+print(model)
 
 for param in model.parameters():
     if param.dim() == 1:
@@ -61,7 +61,7 @@ for param in model.parameters():
 if args.load_epoch > 0:
     model.load_state_dict(torch.load(args.save_dir + "/model.iter-" + str(args.load_epoch)))
 
-print "Model #Params: %dK" % (sum([x.nelement() for x in model.parameters()]) / 1000,)
+print("Model #Params: %dK" % (sum([x.nelement() for x in model.parameters()]) // 1000))
 
 optimizer = optim.Adam(model.parameters(), lr=args.lr)
 scheduler = lr_scheduler.ExponentialLR(optimizer, args.anneal_rate)
