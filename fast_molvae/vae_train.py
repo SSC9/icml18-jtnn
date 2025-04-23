@@ -46,6 +46,9 @@ parser.add_argument('--save_iter', type=int, default=5000)
 args = parser.parse_args()
 print(args)
 
+import os
+os.makedirs(args.save_dir, exist_ok=True)
+
 vocab = [x.strip("\r\n ") for x in open(args.vocab)] 
 vocab = Vocab(vocab)
 
