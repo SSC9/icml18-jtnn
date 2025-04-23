@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mol_tree import Vocab, MolTree, MolTreeNode
-from nnutils import create_var, GRU
-from chemutils import enum_assemble, set_atommap
+from .mol_tree import Vocab, MolTree, MolTreeNode
+from .nnutils import create_var, GRU
+from .chemutils import enum_assemble, set_atommap
 import copy
 
 MAX_NB = 15
@@ -13,32 +13,44 @@ class JTNNDecoder(nn.Module):
 
     def __init__(self, vocab, hidden_size, latent_size, embedding):
         super(JTNNDecoder, self).__init__()
-        self.hidden_size = hidden_size
+
+        # 🧠 Force types to int explicitly to avoid float-related torch errors
+        hs = int(hidden_size)
+        ls = int(latent_size)
+        hs2 = int(2 * hidden_size)
+
+        self.hidden_size = hs
         self.vocab_size = vocab.size()
         self.vocab = vocab
         self.embedding = embedding
 
-        #GRU Weights
-        self.W_z = nn.Linear(2 * hidden_size, hidden_size)
-        self.U_r = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.W_r = nn.Linear(hidden_size, hidden_size)
-        self.W_h = nn.Linear(2 * hidden_size, hidden_size)
+        try:
+            # GRU weights
+            self.W_z = nn.Linear(hs2, hs)
+            self.U_r = nn.Linear(hs, hs, bias=False)
+            self.W_r = nn.Linear(hs, hs)
+            self.W_h = nn.Linear(hs2, hs)
 
-        #Word Prediction Weights 
-        self.W = nn.Linear(hidden_size + latent_size, hidden_size)
+            # Word Prediction Weights
+            self.W = nn.Linear(hs + ls, hs)
 
-        #Stop Prediction Weights
-        self.U = nn.Linear(hidden_size + latent_size, hidden_size)
-        self.U_i = nn.Linear(2 * hidden_size, hidden_size)
+            # Stop Prediction Weights
+            self.U = nn.Linear(hs + ls, hs)
+            self.U_i = nn.Linear(hs2, hs)
 
-        #Output Weights
-        self.W_o = nn.Linear(hidden_size, self.vocab_size)
-        self.U_o = nn.Linear(hidden_size, 1)
+            # Output Weights
+            self.W_o = nn.Linear(hs, self.vocab_size)
+            self.U_o = nn.Linear(hs, 1)
 
-        #Loss Functions
-        self.pred_loss = nn.CrossEntropyLoss(size_average=False)
-        self.stop_loss = nn.BCEWithLogitsLoss(size_average=False)
+            # Loss functions
+            self.pred_loss = nn.CrossEntropyLoss(reduction='sum')  # replaced deprecated arg
+            self.stop_loss = nn.BCEWithLogitsLoss(reduction='sum')
 
+        except Exception as e:
+            print(f"❌ Error initializing JTNNDecoder layers: {e}")
+            raise
+
+          
     def aggregate(self, hiddens, contexts, x_tree_vecs, mode):
         if mode == 'word':
             V, V_o = self.W, self.W_o
@@ -333,7 +345,7 @@ def can_assemble(node_x, node_y):
 if __name__ == "__main__":
     smiles = ["O=C1[C@@H]2C=C[C@@H](C=CC2)C1(c1ccccc1)c1ccccc1","O=C([O-])CC[C@@]12CCCC[C@]1(O)OC(=O)CC2", "ON=C1C[C@H]2CC3(C[C@@H](C1)c1ccccc12)OCCO3", "C[C@H]1CC(=O)[C@H]2[C@@]3(O)C(=O)c4cccc(O)c4[C@@H]4O[C@@]43[C@@H](O)C[C@]2(O)C1", 'Cc1cc(NC(=O)CSc2nnc3c4ccccc4n(C)c3n2)ccc1Br', 'CC(C)(C)c1ccc(C(=O)N[C@H]2CCN3CCCc4cccc2c43)cc1', "O=c1c2ccc3c(=O)n(-c4nccs4)c(=O)c4ccc(c(=O)n1-c1nccs1)c2c34", "O=C(N1CCc2c(F)ccc(F)c2C1)C1(O)Cc2ccccc2C1"]
     for s in smiles:
-        print s
+        print(s)
         tree = MolTree(s)
         for i,node in enumerate(tree.nodes):
             node.idx = i
@@ -341,5 +353,5 @@ if __name__ == "__main__":
         stack = []
         dfs(stack, tree.nodes[0], -1)
         for x,y,d in stack:
-            print x.smiles, y.smiles, d
-        print '------------------------------'
+            print(x.smiles, y.smiles, d)
+        print('------------------------------')
