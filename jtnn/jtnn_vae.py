@@ -26,26 +26,34 @@ class JTNNVAE(nn.Module):
 
     def __init__(self, vocab, hidden_size, latent_size, depth, stereo=True):
         super(JTNNVAE, self).__init__()
+    
+        # ✅ Safe integer casting
+        hs = int(hidden_size)
+        ls = int(latent_size) // 2
+        depth = int(depth)
+    
         self.vocab = vocab
-        self.hidden_size = hidden_size
-        self.latent_size = latent_size
+        self.hidden_size = hs
+        self.latent_size = ls * 2  # store full latent size
         self.depth = depth
 
-        self.embedding = nn.Embedding(vocab.size(), hidden_size)
-        self.jtnn = JTNNEncoder(vocab, hidden_size, self.embedding)
-        self.jtmpn = JTMPN(hidden_size, depth)
-        self.mpn = MPN(hidden_size, depth)
-        self.decoder = JTNNDecoder(vocab, hidden_size, latent_size / 2, self.embedding)
+        self.embedding = nn.Embedding(vocab.size(), hs)
+        self.jtnn = JTNNEncoder(vocab, hs, self.embedding)
+        self.jtmpn = JTMPN(hs, depth)
+        self.mpn = MPN(hs, depth)
+        self.decoder = JTNNDecoder(vocab, hs, ls, self.embedding)
 
-        self.T_mean = nn.Linear(hidden_size, latent_size / 2)
-        self.T_var = nn.Linear(hidden_size, latent_size / 2)
-        self.G_mean = nn.Linear(hidden_size, latent_size / 2)
-        self.G_var = nn.Linear(hidden_size, latent_size / 2)
-        
-        self.assm_loss = nn.CrossEntropyLoss(size_average=False)
+        self.T_mean = nn.Linear(hs, ls)
+        self.T_var = nn.Linear(hs, ls)
+        self.G_mean = nn.Linear(hs, ls)
+        self.G_var = nn.Linear(hs, ls)
+
+        # ✅ Updated to PyTorch 1.13+ API
+        self.assm_loss = nn.CrossEntropyLoss(reduction='sum')
         self.use_stereo = stereo
         if stereo:
-            self.stereo_loss = nn.CrossEntropyLoss(size_average=False)
+            self.stereo_loss = nn.CrossEntropyLoss(reduction='sum')
+
     
     def encode(self, mol_batch):
         set_batch_nodeID(mol_batch, self.vocab)
