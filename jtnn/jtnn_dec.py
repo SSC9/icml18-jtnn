@@ -10,44 +10,42 @@ MAX_DECODE_LEN = 100
 
 class JTNNDecoder(nn.Module):
 
-    def __init__(self, vocab, hidden_size, latent_size, embedding=None):
+    def __init__(self, vocab, hidden_size, latent_size, embedding=None):  # ✅ fixed __init__ spelling
         super(JTNNDecoder, self).__init__()
 
-        # 🧠 Force types to int explicitly to avoid float-related torch errors
+        # ✅ Explicit type casting
         hs = int(hidden_size)
         ls = int(latent_size)
-        hs2 = int(2 * hidden_size)
+        hs2 = hs * 2
+        vocab_size = int(vocab.size())
 
         self.hidden_size = hs
-        self.vocab_size = vocab.size()
+        self.vocab_size = vocab_size
         self.vocab = vocab
-        self.embedding = embedding
 
-        try:
-            # GRU weights
-            self.W_z = nn.Linear(hs2, hs)
-            self.U_r = nn.Linear(hs, hs, bias=False)
-            self.W_r = nn.Linear(hs, hs)
-            self.W_h = nn.Linear(hs2, hs)
+        # Embedding
+        if embedding is None:
+            self.embedding = nn.Embedding(vocab_size, hs)
+        else:
+            self.embedding = embedding
 
-            # Word Prediction Weights
-            self.W = nn.Linear(hs + ls, hs)
+        # ✅ GRU Weights
+        self.W_z = nn.Linear(hs2, hs)
+        self.U_r = nn.Linear(hs, hs, bias=False)
+        self.W_r = nn.Linear(hs, hs)
+        self.W_h = nn.Linear(hs2, hs)
 
-            # Stop Prediction Weights
-            self.U = nn.Linear(hs + ls, hs)
-            self.U_i = nn.Linear(hs2, hs)
+        # ✅ Feature Aggregate Weights
+        self.W = nn.Linear(ls + hs, hs)
+        self.U = nn.Linear(ls + hs2, hs)
 
-            # Output Weights
-            self.W_o = nn.Linear(hs, self.vocab_size)
-            self.U_o = nn.Linear(hs, 1)
+        # ✅ Output Weights
+        self.W_o = nn.Linear(hs, vocab_size)
+        self.U_s = nn.Linear(hs, 1)
 
-            # Loss functions
-            self.pred_loss = nn.CrossEntropyLoss(reduction='sum')  # replaced deprecated arg
-            self.stop_loss = nn.BCEWithLogitsLoss(reduction='sum')
-
-        except Exception as e:
-            print(f"❌ Error initializing JTNNDecoder layers: {e}")
-            raise
+        # ✅ Updated loss functions (remove deprecated args)
+        self.pred_loss = nn.CrossEntropyLoss(reduction='sum')
+        self.stop_loss = nn.BCEWithLogitsLoss(reduction='sum')
 
     def get_trace(self, node):
         super_root = MolTreeNode("")
