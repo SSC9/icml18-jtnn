@@ -12,32 +12,42 @@ class JTNNDecoder(nn.Module):
 
     def __init__(self, vocab, hidden_size, latent_size, embedding=None):
         super(JTNNDecoder, self).__init__()
-        self.hidden_size = hidden_size
+
+        # 🧠 Force types to int explicitly to avoid float-related torch errors
+        hs = int(hidden_size)
+        ls = int(latent_size)
+        hs2 = int(2 * hidden_size)
+
+        self.hidden_size = hs
         self.vocab_size = vocab.size()
         self.vocab = vocab
+        self.embedding = embedding
 
-        if embedding is None:
-            self.embedding = nn.Embedding(self.vocab_size, hidden_size)
-        else:
-            self.embedding = embedding
+        try:
+            # GRU weights
+            self.W_z = nn.Linear(hs2, hs)
+            self.U_r = nn.Linear(hs, hs, bias=False)
+            self.W_r = nn.Linear(hs, hs)
+            self.W_h = nn.Linear(hs2, hs)
 
-        #GRU Weights
-        self.W_z = nn.Linear(2 * hidden_size, hidden_size)
-        self.U_r = nn.Linear(hidden_size, hidden_size, bias=False)
-        self.W_r = nn.Linear(hidden_size, hidden_size)
-        self.W_h = nn.Linear(2 * hidden_size, hidden_size)
+            # Word Prediction Weights
+            self.W = nn.Linear(hs + ls, hs)
 
-        #Feature Aggregate Weights
-        self.W = nn.Linear(latent_size + hidden_size, hidden_size)
-        self.U = nn.Linear(latent_size + 2 * hidden_size, hidden_size)
+            # Stop Prediction Weights
+            self.U = nn.Linear(hs + ls, hs)
+            self.U_i = nn.Linear(hs2, hs)
 
-        #Output Weights
-        self.W_o = nn.Linear(hidden_size, self.vocab_size)
-        self.U_s = nn.Linear(hidden_size, 1)
+            # Output Weights
+            self.W_o = nn.Linear(hs, self.vocab_size)
+            self.U_o = nn.Linear(hs, 1)
 
-        #Loss Functions
-        self.pred_loss = nn.CrossEntropyLoss(size_average=False)
-        self.stop_loss = nn.BCEWithLogitsLoss(size_average=False)
+            # Loss functions
+            self.pred_loss = nn.CrossEntropyLoss(reduction='sum')  # replaced deprecated arg
+            self.stop_loss = nn.BCEWithLogitsLoss(reduction='sum')
+
+        except Exception as e:
+            print(f"❌ Error initializing JTNNDecoder layers: {e}")
+            raise
 
     def get_trace(self, node):
         super_root = MolTreeNode("")
